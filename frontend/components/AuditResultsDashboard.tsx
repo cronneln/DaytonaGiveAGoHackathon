@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import type { PackageResult } from "./PackageCard";
 import { SEVERITY_CONFIG } from "./PackageCard";
 
@@ -379,8 +380,21 @@ export default function AuditResultsDashboard({
           <p className="mt-4 text-sm text-red-400/90">{aiError}</p>
         )}
         {!aiLoading && !aiError && aiSummary && (
-          <div className="mt-4 text-sm leading-relaxed text-white/78 whitespace-pre-wrap">
-            {aiSummary}
+          <div className="mt-4 text-sm leading-relaxed text-white/78">
+            <ReactMarkdown
+              components={{
+                h1: (p) => <h1 className="text-base font-bold text-white mb-2 mt-4" {...p} />,
+                h2: (p) => <h2 className="text-sm font-semibold text-white mb-1 mt-3" {...p} />,
+                h3: (p) => <h3 className="text-sm font-semibold text-white/90 mb-1 mt-2" {...p} />,
+                strong: (p) => <strong className="font-semibold text-white" {...p} />,
+                p: (p) => <p className="mb-2" {...p} />,
+                ul: (p) => <ul className="list-disc list-inside mb-2 space-y-1" {...p} />,
+                li: (p) => <li className="ml-2" {...p} />,
+                hr: () => <hr className="border-white/10 my-3" />,
+              }}
+            >
+              {aiSummary}
+            </ReactMarkdown>
           </div>
         )}
       </section>

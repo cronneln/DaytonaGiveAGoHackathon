@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 const EXAMPLE = JSON.stringify(
@@ -22,12 +23,21 @@ const EXAMPLE = JSON.stringify(
   2
 );
 
+/** Must match filename in `frontend/public/` (spaces encoded for the URL). */
+const EASTER_EGG_STAGE2_GIF =
+  "/" +
+  encodeURIComponent("WhatsApp GIF 2025-11-25 at 18.48.08.gif");
+
 export default function PackageInput() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [easterEggOpen, setEasterEggOpen] = useState(false);
+  const [easterEggStage, setEasterEggStage] = useState<
+    null | "colin" | "gif"
+  >(null);
+  const [stage2Src, setStage2Src] = useState("/easter-egg-stage2.png");
+  const [portalReady, setPortalReady] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -35,13 +45,43 @@ export default function PackageInput() {
     process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
   useEffect(() => {
-    if (!easterEggOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setEasterEggOpen(false);
+    if (!easterEggStage) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [easterEggStage]);
+
+  useEffect(() => {
+    if (easterEggStage !== "gif") return;
+    setStage2Src("/easter-egg-stage2.png");
+    const probe = new Image();
+    probe.onload = () => setStage2Src(EASTER_EGG_STAGE2_GIF);
+    probe.onerror = () => {};
+    probe.src = EASTER_EGG_STAGE2_GIF;
+  }, [easterEggStage]);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!easterEggStage) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setEasterEggStage((prev) => {
+        if (prev === "colin") return "gif";
+        if (prev === "gif") return null;
+        return null;
+      });
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [easterEggOpen]);
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [easterEggStage]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,10 +132,29 @@ export default function PackageInput() {
     reader.readAsText(file);
   }, []);
 
+  function isLikelyJsonFile(file: File): boolean {
+    const name = file.name.trim().toLowerCase();
+    if (name.endsWith(".json")) return true;
+    const t = file.type.toLowerCase();
+    return (
+      t === "application/json" ||
+      t === "text/json" ||
+      t === "application/ld+json"
+    );
+  }
+
+  function handleChosenFile(file: File) {
+    if (!isLikelyJsonFile(file)) {
+      setEasterEggStage("colin");
+      return;
+    }
+    loadFileFromFile(file);
+  }
+
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    loadFileFromFile(file);
+    handleChosenFile(file);
     e.target.value = "";
   }
 
@@ -122,57 +181,61 @@ export default function PackageInput() {
     }
   }
 
-  function isImageDrop(file: File) {
-    if (file.type.startsWith("image/")) return true;
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    return (
-      ext === "png" ||
-      ext === "jpg" ||
-      ext === "jpeg" ||
-      ext === "gif" ||
-      ext === "webp" ||
-      ext === "heic"
-    );
-  }
-
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
-    if (isImageDrop(file)) {
-      setEasterEggOpen(true);
-      return;
-    }
-    loadFileFromFile(file);
+    handleChosenFile(file);
   }
 
+  const easterEggOverlay =
+    portalReady &&
+    easterEggStage &&
+    createPortal(
+      <div
+        className="fixed inset-0 z-9999 h-dvh w-screen overflow-hidden bg-black"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Easter egg"
+      >
+        {easterEggStage === "colin" ? (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <img
+                src="/easter-egg.png"
+                alt=""
+                className="h-full w-full object-contain object-center"
+              />
+            </div>
+            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
+              esc to stop looking at colin
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <img
+                key={stage2Src}
+                src={stage2Src}
+                alt=""
+                className="h-full w-full object-contain object-center"
+              />
+            </div>
+            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
+              esc to return home
+            </p>
+          </>
+        )}
+      </div>,
+      document.body
+    );
+
   return (
-    <form onSubmit={submit} className="space-y-4">
-      {easterEggOpen && (
-        <div
-          className="fixed inset-0 z-100 flex items-center justify-center bg-black/85 p-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Easter egg"
-          onClick={() => setEasterEggOpen(false)}
-        >
-          <div
-            className="relative max-h-[90vh] max-w-[min(92vw,520px)] overflow-hidden rounded-2xl border border-white/15 shadow-[0_24px_80px_rgba(0,0,0,0.75)] ring-2 ring-white/10"
-            onClick={(ev) => ev.stopPropagation()}
-          >
-            <img
-              src="/easter-egg.png"
-              alt=""
-              className="max-h-[85vh] w-auto max-w-full object-contain"
-            />
-            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-white/20 bg-black/55 px-3 py-1 text-xs text-white/70 backdrop-blur-sm">
-              Press Esc or click outside
-            </span>
-          </div>
-        </div>
-      )}
+    <>
+      {easterEggOverlay}
+      <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label
@@ -203,7 +266,6 @@ export default function PackageInput() {
         <input
           ref={fileRef}
           type="file"
-          accept=".json"
           className="hidden"
           onChange={onFile}
         />
@@ -266,5 +328,6 @@ export default function PackageInput() {
         )}
       </button>
     </form>
+    </>
   );
 }

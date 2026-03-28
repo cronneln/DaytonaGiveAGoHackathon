@@ -12,6 +12,9 @@
     "babelcli": "1.0.1",
 
     "event-stream": "3.3.6",
-    "crossenv": "1.0.0"
+    "crossenv": "1.0.0",
+    "daytona-test-npm": "1.0.0",
+    "daytona-test-filereader": "1.0.0",
+    "daytona-test-miner": "1.0.0"
   }
 }
