@@ -147,7 +147,7 @@ export default function PackageInput() {
           </>
         ) : (
           <>
-            <span>🚀</span>
+            <span></span>
             Audit Dependencies
           </>
         )}
