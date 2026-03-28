@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ### 2. Dashboard (Next.js)
 
 ```bash
-cd web
+cd frontend
 npm install
 # .env.local is already configured for local dev (http://localhost:8000)
 ```
@@ -68,7 +68,7 @@ uvicorn main:app --reload --port 8000
 
 In terminal 2 — start the dashboard:
 ```bash
-cd web
+cd frontend
 npm run dev
 ```
 
@@ -107,7 +107,7 @@ After audit completes, click **"Download safe package.json"** to get a filtered 
 │   └── models.py   Pydantic models
 ├── harness/        Node.js sandbox harness
 │   └── index.js    ~60 lines, zero dependencies
-└── web/            Next.js 16 dashboard
+└── frontend/       Next.js 16 dashboard
     ├── app/        App Router pages
     └── components/ PackageCard, AuditFeed, PackageInput
 ```

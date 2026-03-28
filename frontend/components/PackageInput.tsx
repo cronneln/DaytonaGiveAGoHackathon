@@ -87,7 +87,7 @@ export default function PackageInput() {
         <div className="flex items-center justify-between">
           <label
             htmlFor="pkg-json"
-            className="text-sm font-medium text-gray-300"
+            className="text-sm font-medium text-white/76"
           >
             Paste your package.json
           </label>
@@ -95,15 +95,15 @@ export default function PackageInput() {
             <button
               type="button"
               onClick={() => setValue(EXAMPLE)}
-              className="text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-white/56 transition-colors hover:text-white"
             >
               Load example
             </button>
-            <span className="text-gray-600">|</span>
+            <span className="text-white/20">|</span>
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="text-blue-400 hover:text-blue-300 transition-colors"
+              className="text-white/56 transition-colors hover:text-white"
             >
               Upload file
             </button>
@@ -123,13 +123,13 @@ export default function PackageInput() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={`{\n  "dependencies": {\n    "lodash": "^4.17.21"\n  }\n}`}
-          className="w-full h-64 bg-gray-900 border border-gray-700 rounded-lg p-4 font-mono text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+          className="h-64 w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 font-mono text-sm text-white placeholder:text-white/24 focus:border-white/24 focus:outline-none"
           spellCheck={false}
         />
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 text-red-300 text-sm">
+        <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           <span>⚠</span>
           <span>{error}</span>
         </div>
@@ -138,7 +138,7 @@ export default function PackageInput() {
       <button
         type="submit"
         disabled={loading || !value.trim()}
-        className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/14 bg-white px-6 py-3 font-semibold text-black transition-colors hover:bg-white/92 disabled:border-white/8 disabled:bg-white/10 disabled:text-white/30"
       >
         {loading ? (
           <>
