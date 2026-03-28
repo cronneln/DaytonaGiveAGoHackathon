@@ -6,8 +6,20 @@ Creates isolated workspaces, runs the harness, collects results, destroys worksp
 import asyncio
 import json
 import os
+import re
+import shlex
 from pathlib import Path
 from models import RuntimeReport
+
+NPM_NAME_PATTERN = re.compile(r'^(@[a-z0-9\-~][a-z0-9\-._~]*/)?[a-z0-9\-~][a-z0-9\-._~]*$')
+
+
+def _validate_package_name(name: str) -> None:
+    """Raise ValueError if the package name is not a valid npm name."""
+    if not name or len(name) > 214:
+        raise ValueError(f"Invalid package name length: {repr(name)}")
+    if not NPM_NAME_PATTERN.match(name):
+        raise ValueError(f"Invalid package name format: {repr(name)}")
 
 # Load harness code once at startup
 HARNESS_PATH = Path(__file__).parent.parent / "harness" / "index.js"
@@ -27,6 +39,9 @@ def _create_and_run(package_name: str) -> dict:
     Creates sandbox -> uploads harness -> installs pkg -> runs harness -> deletes sandbox.
     Returns raw runtime report dict.
     """
+    _validate_package_name(package_name)
+    safe_name = shlex.quote(package_name)
+
     from daytona_sdk import Daytona, CreateSandboxFromImageParams
 
     daytona = Daytona()
@@ -42,8 +57,8 @@ def _create_and_run(package_name: str) -> dict:
 
         # Install the package and run the harness
         # Capture only stdout (harness writes JSON to stdout, install logs to stderr)
-        install_cmd = f"npm install {package_name} --prefix /app --no-save 2>/dev/null"
-        run_cmd = f"NODE_PATH=/app/node_modules node /harness.js {package_name}"
+        install_cmd = f"npm install {safe_name} --prefix /app --no-save 2>/dev/null"
+        run_cmd = f"NODE_PATH=/app/node_modules node /harness.js {safe_name}"
         full_cmd = f"{install_cmd} && {run_cmd}"
 
         result = sandbox.process.exec(full_cmd, timeout=45)

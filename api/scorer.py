@@ -3,6 +3,7 @@ Claude Opus 4.6 Threat Synthesizer
 Reads runtime behavioral reports and produces structured threat assessments.
 """
 
+import asyncio
 import json
 import anthropic
 from models import RuntimeReport, ThreatReport, Severity, PackageResult
@@ -55,32 +56,36 @@ THREAT_TOOL = {
 
 def _build_prompt(package_name: str, report: RuntimeReport) -> str:
     network_summary = ""
+    # Truncate to 50 items to prevent oversized prompts exceeding token limits
+    network_preview = report.networkCalls[:50]
     if report.networkCalls:
         hosts = list({c.get("host", "unknown") for c in report.networkCalls})
         network_summary = f"Made {len(report.networkCalls)} outbound network call(s) to: {', '.join(hosts)}"
     else:
         network_summary = "No outbound network calls detected"
 
-    fs_writes = len(report.fileSystemWrites)
+    fs_writes_preview = report.fileSystemWrites[:50]
     fs_reads_sensitive = [r for r in report.fileSystemReads if r.get("suspicious")]
+    fs_reads_preview = fs_reads_sensitive[:50]
 
     env_accessed = [e.get("key", "") for e in report.envVarAccess]
+    env_preview = env_accessed[:50]
 
     return f"""Analyze the runtime behavior of npm package "{package_name}" and assess its threat level.
 
 ## Runtime Behavioral Report
 
 **Network Activity:** {network_summary}
-{json.dumps(report.networkCalls, indent=2) if report.networkCalls else ""}
+{json.dumps(network_preview, indent=2) if network_preview else ""}
 
-**File System Writes:** {fs_writes} write(s)
-{json.dumps(report.fileSystemWrites, indent=2) if report.fileSystemWrites else ""}
+**File System Writes:** {len(report.fileSystemWrites)} write(s)
+{json.dumps(fs_writes_preview, indent=2) if fs_writes_preview else ""}
 
 **Sensitive File Reads:** {len(fs_reads_sensitive)} suspicious read(s)
-{json.dumps(fs_reads_sensitive, indent=2) if fs_reads_sensitive else ""}
+{json.dumps(fs_reads_preview, indent=2) if fs_reads_preview else ""}
 
 **Environment Variable Access:** {len(env_accessed)} sensitive key(s) accessed
-{json.dumps(env_accessed, indent=2) if env_accessed else ""}
+{json.dumps(env_preview, indent=2) if env_preview else ""}
 
 **CPU user-time share (max across cores, 0–1):** {report.cpuUserRatioMax:.2f}
 **CPU Anomaly (possible cryptominer):** {"YES - CPU usage spiked above 75%" if report.cpuAnomaly else "No"}
@@ -110,14 +115,31 @@ async def score_runtime(package_name: str, report: RuntimeReport) -> ThreatRepor
             explanation="No network calls, file access, environment variable probing, CPU anomalies, or errors detected.",
         )
 
-    response = await client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        tools=[THREAT_TOOL],
-        tool_choice={"type": "tool", "name": "report_threat"},
-        messages=[{"role": "user", "content": prompt}],
-    )
+    # Retry on transient API errors (rate limits and overload)
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = await client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=1024,
+                system=SYSTEM_PROMPT,
+                tools=[THREAT_TOOL],
+                tool_choice={"type": "tool", "name": "report_threat"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+            break
+        except anthropic.RateLimitError as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+            else:
+                raise
+        except anthropic.APIStatusError as exc:
+            last_exc = exc
+            if exc.status_code in (529,) and attempt < 2:
+                await asyncio.sleep(2 ** attempt)
+            else:
+                raise
 
     tool_use = next(
         (block for block in response.content if block.type == "tool_use"),
@@ -127,11 +149,16 @@ async def score_runtime(package_name: str, report: RuntimeReport) -> ThreatRepor
         raise ValueError("Claude returned no tool_use content")
 
     data = tool_use.input
+    try:
+        severity = Severity(data["severity"])
+    except (ValueError, KeyError):
+        severity = Severity.medium  # Unknown response → treat with caution
+
     return ThreatReport(
-        severity=Severity(data["severity"]),
-        behaviors=data["behaviors"],
-        summary=data["summary"],
-        explanation=data["explanation"],
+        severity=severity,
+        behaviors=data.get("behaviors", []),
+        summary=data.get("summary", "Threat assessment unavailable"),
+        explanation=data.get("explanation", ""),
     )
 
 

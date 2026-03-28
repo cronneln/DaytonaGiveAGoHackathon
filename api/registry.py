@@ -6,8 +6,11 @@ High score = more suspicious = audit first.
 
 import asyncio
 import httpx
+import logging
 from datetime import datetime, timezone, timedelta
 from models import SuspicionScore
+
+logger = logging.getLogger(__name__)
 
 # Top 100 most downloaded npm packages for typosquatting detection
 TOP_PACKAGES = {
@@ -57,6 +60,8 @@ def typosquat_score(package_name: str) -> tuple[int, list[str]]:
     reasons = []
     score = 0
     for popular in TOP_PACKAGES:
+        if abs(len(name) - len(popular)) > 2:
+            continue  # Can't be within edit distance 2 — skip Levenshtein computation
         dist = levenshtein(name, popular)
         if 0 < dist <= 2 and name != popular:
             score += 4
@@ -76,8 +81,8 @@ async def fetch_npm_metadata(client: httpx.AsyncClient, package_name: str) -> di
         )
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch metadata for %s: %s", package_name, exc)
     return {}
 
 
@@ -92,8 +97,8 @@ async def fetch_npm_downloads(client: httpx.AsyncClient, package_name: str) -> i
         if resp.status_code == 200:
             data = resp.json()
             return data.get("downloads", 0)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch downloads for %s: %s", package_name, exc)
     return 0
 
 

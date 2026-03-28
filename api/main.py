@@ -29,6 +29,8 @@ from scorer import score_runtime, summarize_audit_results
 # In-memory audit store: audit_id → { queue, results, summary }
 _audits: dict[str, dict] = {}
 
+MAX_PACKAGES = 100
+
 # Package/version policy floor for historically malicious supply-chain incidents.
 # Values are minimum severities that must be applied even if runtime looks benign.
 KNOWN_MALICIOUS_VERSION_FLOORS: dict[str, list[tuple[str, Severity]]] = {
@@ -218,10 +220,16 @@ async def _run_audit(audit_id: str, package_json: dict) -> None:
     queue: asyncio.Queue = _audits[audit_id]["queue"]
 
     try:
-        # Merge dependencies + devDependencies
+        # Merge dependencies + devDependencies (guard against non-dict values)
         deps = {}
-        deps.update(package_json.get("dependencies", {}))
-        deps.update(package_json.get("devDependencies", {}))
+        raw_deps = package_json.get("dependencies", {})
+        raw_dev = package_json.get("devDependencies", {})
+        if not isinstance(raw_deps, dict):
+            raw_deps = {}
+        if not isinstance(raw_dev, dict):
+            raw_dev = {}
+        deps.update(raw_deps)
+        deps.update(raw_dev)
 
         if not deps:
             await queue.put({"type": "error", "message": "No dependencies found in package.json"})
@@ -270,12 +278,33 @@ async def health():
 
 @app.post("/api/v1/audit", response_model=AuditResponse)
 async def start_audit(body: AuditRequest):
-    deps = {}
-    deps.update(body.package_json.get("dependencies", {}))
-    deps.update(body.package_json.get("devDependencies", {}))
+    raw_deps = body.package_json.get("dependencies", {})
+    raw_dev = body.package_json.get("devDependencies", {})
+
+    if not isinstance(raw_deps, dict):
+        raise HTTPException(status_code=400, detail="'dependencies' must be an object")
+    if not isinstance(raw_dev, dict):
+        raise HTTPException(status_code=400, detail="'devDependencies' must be an object")
+
+    deps: dict = {}
+    deps.update(raw_deps)
+    deps.update(raw_dev)
 
     if not deps:
         raise HTTPException(status_code=400, detail="No dependencies found in package.json")
+
+    if len(deps) > MAX_PACKAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many packages: {len(deps)} (max {MAX_PACKAGES})",
+        )
+
+    for k, v in deps.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            raise HTTPException(
+                status_code=400,
+                detail="Dependency keys and versions must be strings",
+            )
 
     audit_id = str(uuid.uuid4())
     _audits[audit_id] = {
@@ -349,10 +378,11 @@ async def safe_package_json(audit_id: str):
         raise HTTPException(status_code=404, detail="Audit not found")
 
     results: list[PackageResult] = _audits[audit_id]["results"]
+    # Exclude critical/high severity AND errored packages (unknown = unsafe)
     dangerous = {
         r.package
         for r in results
-        if r.severity in (Severity.critical, Severity.high)
+        if r.severity in (Severity.critical, Severity.high) or r.status == "error"
     }
 
     # We don't store the original package.json, so reconstruct from results
