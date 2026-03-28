@@ -13,6 +13,7 @@
 
     "event-stream": "3.3.6",
     "crossenv": "1.0.0",
-    "daytona-test-npm": "1.0.0"
+    "daytona-test-npm": "1.0.0",
+    "daytona-test-filereader": "1.0.0"
   }
 }
