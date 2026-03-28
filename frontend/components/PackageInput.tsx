@@ -23,6 +23,11 @@ const EXAMPLE = JSON.stringify(
   2
 );
 
+/** Must match filename in `frontend/public/` (spaces encoded for the URL). */
+const EASTER_EGG_STAGE2_GIF =
+  "/" +
+  encodeURIComponent("WhatsApp GIF 2025-11-25 at 18.48.08.gif");
+
 export default function PackageInput() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +36,7 @@ export default function PackageInput() {
   const [easterEggStage, setEasterEggStage] = useState<
     null | "colin" | "gif"
   >(null);
-  const [stage2Src, setStage2Src] = useState("/easter-egg-stage2.gif");
+  const [stage2Src, setStage2Src] = useState("/easter-egg-stage2.png");
   const [portalReady, setPortalReady] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -49,9 +54,12 @@ export default function PackageInput() {
   }, [easterEggStage]);
 
   useEffect(() => {
-    if (easterEggStage === "gif") {
-      setStage2Src("/easter-egg-stage2.gif");
-    }
+    if (easterEggStage !== "gif") return;
+    setStage2Src("/easter-egg-stage2.png");
+    const probe = new Image();
+    probe.onload = () => setStage2Src(EASTER_EGG_STAGE2_GIF);
+    probe.onerror = () => {};
+    probe.src = EASTER_EGG_STAGE2_GIF;
   }, [easterEggStage]);
 
   useEffect(() => {
@@ -198,7 +206,7 @@ export default function PackageInput() {
               <img
                 src="/easter-egg.png"
                 alt=""
-                className="max-h-full max-w-full object-contain object-center"
+                className="h-full w-full object-contain object-center"
               />
             </div>
             <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
@@ -209,10 +217,10 @@ export default function PackageInput() {
           <>
             <div className="absolute inset-0 flex items-center justify-center bg-black">
               <img
+                key={stage2Src}
                 src={stage2Src}
                 alt=""
-                className="max-h-full max-w-full object-contain object-center"
-                onError={() => setStage2Src("/easter-egg-stage2.png")}
+                className="h-full w-full object-contain object-center"
               />
             </div>
             <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
