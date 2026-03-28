@@ -29,6 +29,126 @@ from scorer import score_runtime, summarize_audit_results
 # In-memory audit store: audit_id → { queue, results, summary }
 _audits: dict[str, dict] = {}
 
+# Package/version policy floor for historically malicious supply-chain incidents.
+# Values are minimum severities that must be applied even if runtime looks benign.
+KNOWN_MALICIOUS_VERSION_FLOORS: dict[str, list[tuple[str, Severity]]] = {
+    # 2018 supply-chain incident chain
+    "event-stream": [
+        ("3.3.6", Severity.high),
+    ],
+    "flatmap-stream": [
+        ("0.1.1", Severity.critical),
+    ],
+    # 2021 credential-stealing malware campaign
+    "ua-parser-js": [
+        ("0.7.29", Severity.critical),
+        ("0.8.0", Severity.critical),
+        ("1.0.0", Severity.critical),
+    ],
+    # 2021 malware campaign (same actor family)
+    "rc": [
+        ("1.2.9", Severity.high),
+        ("1.3.9", Severity.high),
+        ("2.3.9", Severity.high),
+    ],
+    "coa": [
+        ("2.0.4", Severity.high),
+        ("2.1.1", Severity.high),
+        ("3.0.1", Severity.high),
+    ],
+    # Deliberate sabotage/protestware release incidents
+    "colors": [
+        ("1.4.44-liberty-2", Severity.medium),
+    ],
+    "faker": [
+        ("6.6.6", Severity.medium),
+    ],
+    # Common typosquat-style names used in test and real-world confusion attacks
+    "expresss": [
+        ("1.0.0", Severity.high),
+    ],
+    "lodas": [
+        ("1.0.0", Severity.high),
+    ],
+    # Other suspicious package names seen in typo/confusion campaigns
+    "crossenv": [
+        ("1.0.0", Severity.high),
+    ],
+    "react-dom-router": [
+        ("1.0.0", Severity.high),
+    ],
+    # Protestware / sabotage incidents
+    "node-ipc": [
+        ("10.1.1", Severity.medium),
+        ("10.1.2", Severity.medium),
+    ],
+    "peacenotwar": [
+        ("1.0.0", Severity.medium),
+    ],
+}
+
+SEVERITY_RANK: dict[Severity, int] = {
+    Severity.safe: 0,
+    Severity.low: 1,
+    Severity.medium: 2,
+    Severity.high: 3,
+    Severity.critical: 4,
+}
+
+
+def _version_spec_includes(version_spec: str, exact_version: str) -> bool:
+    """Best-effort match for exact versions included in simple semver specs."""
+    spec = (version_spec or "").strip().lower()
+    exact = exact_version.strip().lower()
+    if not spec:
+        return False
+    if spec == exact:
+        return True
+    # Handles common specs like ^3.3.6, ~3.3.6, >=3.3.6, 3.3.6 || 3.3.7
+    return exact in spec
+
+
+def _apply_known_malicious_floor(result: PackageResult) -> None:
+    """Escalate severity for known malicious package/version combos."""
+    floors = KNOWN_MALICIOUS_VERSION_FLOORS.get(result.package)
+    if not floors:
+        return
+
+    matched: list[tuple[str, Severity]] = [
+        (known_version, floor_severity)
+        for known_version, floor_severity in floors
+        if _version_spec_includes(result.version, known_version)
+    ]
+    if not matched:
+        return
+
+    # Apply the strongest floor if multiple versions are matched by a broad spec.
+    known_version, floor_severity = max(
+        matched,
+        key=lambda m: SEVERITY_RANK[m[1]],
+    )
+
+    current = result.severity or Severity.safe
+    if SEVERITY_RANK[current] >= SEVERITY_RANK[floor_severity]:
+        return
+
+    result.severity = floor_severity
+    policy_behavior = (
+        f"Known malicious package/version policy match: {result.package}@{known_version}"
+    )
+    if policy_behavior not in result.behaviors:
+        result.behaviors.append(policy_behavior)
+
+    result.summary = (
+        f"{result.package}@{known_version} is historically associated with a supply-chain incident; "
+        f"severity escalated to at least {floor_severity.value}."
+    )
+    result.explanation = (
+        "Runtime observations are supplemented by historical threat intelligence policy. "
+        f"Detected package spec '{result.version}' includes known malicious version '{known_version}', "
+        f"so severity cannot be below '{floor_severity.value}'."
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -82,6 +202,7 @@ async def _audit_single_package(
         result.behaviors = threat.behaviors
         result.summary = threat.summary
         result.explanation = threat.explanation
+        _apply_known_malicious_floor(result)
         result.status = "complete"
     except Exception as e:
         result.status = "error"
