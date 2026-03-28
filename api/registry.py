@@ -51,6 +51,9 @@ def typosquat_score(package_name: str) -> tuple[int, list[str]]:
     """Check if package name is suspiciously close to a popular package."""
     # Strip scope prefix for comparison
     name = package_name.split("/")[-1].lower()
+    # If this is itself a known popular package, do not mark it as typosquatting.
+    if name in TOP_PACKAGES:
+        return 0, []
     reasons = []
     score = 0
     for popular in TOP_PACKAGES:
