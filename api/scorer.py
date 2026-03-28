@@ -5,7 +5,7 @@ Reads runtime behavioral reports and produces structured threat assessments.
 
 import json
 import anthropic
-from models import RuntimeReport, ThreatReport, Severity
+from models import RuntimeReport, ThreatReport, Severity, PackageResult
 
 client = anthropic.AsyncAnthropic()
 
@@ -82,6 +82,7 @@ def _build_prompt(package_name: str, report: RuntimeReport) -> str:
 **Environment Variable Access:** {len(env_accessed)} sensitive key(s) accessed
 {json.dumps(env_accessed, indent=2) if env_accessed else ""}
 
+**CPU user-time share (max across cores, 0–1):** {report.cpuUserRatioMax:.2f}
 **CPU Anomaly (possible cryptominer):** {"YES - CPU usage spiked above 75%" if report.cpuAnomaly else "No"}
 
 **Errors during import:** {report.errors if report.errors else "None"}
@@ -132,3 +133,66 @@ async def score_runtime(package_name: str, report: RuntimeReport) -> ThreatRepor
         summary=data["summary"],
         explanation=data["explanation"],
     )
+
+
+AUDIT_SUMMARY_SYSTEM = """You are a supply-chain security lead summarizing an automated npm dependency audit.
+Write a clear executive summary for developers: prioritize risks, mention safe findings briefly, and suggest next steps.
+Use short paragraphs and bullet points where helpful. Do not invent facts not present in the data."""
+
+
+async def summarize_audit_results(results: list[PackageResult]) -> str:
+    """High-level AI summary across all audited packages."""
+    if not results:
+        return "No packages were analyzed."
+
+    errors = [r for r in results if r.status == "error"]
+    issues = [
+        r
+        for r in results
+        if r.status == "complete" and r.severity and r.severity != Severity.safe
+    ]
+    safe_n = sum(1 for r in results if r.status == "complete" and r.severity == Severity.safe)
+
+    if not issues and not errors:
+        return (
+            "Every dependency finished sandbox analysis with no elevated risk signals. "
+            "No suspicious network activity, credential access, or CPU anomalies were flagged."
+        )
+
+    if not issues and errors:
+        names = ", ".join(e.package for e in errors[:12])
+        extra = f" (+{len(errors) - 12} more)" if len(errors) > 12 else ""
+        return (
+            f"Sandbox runs failed for {len(errors)} package(s): {names}{extra}. "
+            "Review the error details per package and retry. "
+            "All other packages completed without suspicious behavior."
+        )
+
+    lines: list[str] = []
+    for r in results:
+        if r.status == "error":
+            lines.append(f"- {r.package}: ERROR — {r.error or 'unknown error'}")
+        elif r.status == "complete":
+            sev = r.severity.value if r.severity else "unknown"
+            lines.append(f"- {r.package} [{sev}]: {r.summary or '(no summary)'}")
+        else:
+            lines.append(f"- {r.package}: status={r.status}")
+
+    user_prompt = (
+        f"Analyzed packages: {len(results)}. "
+        f"Completed with no issue: {safe_n}. "
+        f"Elevated risk or non-safe: {len(issues)}. "
+        f"Sandbox errors: {len(errors)}.\n\n"
+        "Per-package outcomes:\n"
+        + "\n".join(lines)
+    )
+
+    response = await client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=1200,
+        system=AUDIT_SUMMARY_SYSTEM,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    text_blocks = [b.text for b in response.content if b.type == "text"]
+    return "\n\n".join(text_blocks).strip() or "Summary unavailable."

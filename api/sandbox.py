@@ -72,6 +72,7 @@ def _create_and_run(package_name: str) -> dict:
                 "fileSystemReads": [],
                 "envVarAccess": [],
                 "cpuAnomaly": False,
+                "cpuUserRatioMax": 0.0,
                 "errors": [f"Harness produced no JSON output. Raw: {output[:500]}"],
                 "timestamp": 0,
             }
@@ -84,6 +85,7 @@ def _create_and_run(package_name: str) -> dict:
             "fileSystemReads": [],
             "envVarAccess": [],
             "cpuAnomaly": False,
+            "cpuUserRatioMax": 0.0,
             "errors": [f"Sandbox error: {str(e)}"],
             "timestamp": 0,
         }
@@ -106,6 +108,7 @@ async def run_in_sandbox(package_name: str) -> RuntimeReport:
         "fileSystemReads": raw.get("fileSystemReads", []),
         "envVarAccess": raw.get("envVarAccess", []),
         "cpuAnomaly": raw.get("cpuAnomaly", False),
+        "cpuUserRatioMax": float(raw.get("cpuUserRatioMax", 0) or 0),
         "errors": raw.get("errors", []),
         "timestamp": raw.get("timestamp", 0),
     })

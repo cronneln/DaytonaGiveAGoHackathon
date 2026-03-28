@@ -21,6 +21,7 @@ const report = {
   fileSystemReads: [],
   envVarAccess: [],
   cpuAnomaly: false,
+  cpuUserRatioMax: 0,
   errors: [],
   timestamp: Date.now(),
 };
@@ -118,6 +119,7 @@ setTimeout(() => {
     const total = user + sys + idle;
     return total > 0 ? user / total : 0;
   });
+  report.cpuUserRatioMax = anomalies.length ? Math.max(...anomalies) : 0;
   report.cpuAnomaly = anomalies.some(u => u > 0.75);
 
   process.stdout.write(JSON.stringify(report) + '\n');

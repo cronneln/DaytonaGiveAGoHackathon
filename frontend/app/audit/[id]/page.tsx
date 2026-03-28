@@ -10,7 +10,7 @@ export default function AuditPage(props: PageProps<"/audit/[id]">) {
     <main className="relative min-h-screen overflow-hidden bg-background px-6 py-8 text-foreground">
       <DottedSurface className="opacity-55" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.08),transparent_18%,transparent_50%)]" />
-      <div className="relative z-10 mx-auto max-w-4xl space-y-6">
+      <div className="relative z-10 mx-auto max-w-6xl space-y-6">
         <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/6 px-5 py-4 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🔍</span>

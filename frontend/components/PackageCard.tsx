@@ -21,11 +21,12 @@ export interface PackageResult {
     fileSystemReads: Array<{ path: string; suspicious: boolean }>;
     envVarAccess: Array<{ key: string }>;
     cpuAnomaly: boolean;
+    cpuUserRatioMax?: number;
     errors: string[];
   };
 }
 
-const SEVERITY_CONFIG = {
+export const SEVERITY_CONFIG = {
   critical: {
     bg: "bg-red-950",
     border: "border-red-700",
@@ -212,7 +213,11 @@ export default function PackageCard({ pkg }: { pkg: PackageResult }) {
                   {pkg.runtime.envVarAccess.map((e) => e.key).join(", ") ||
                     "none"}
                 </p>
-                <p>CPU anomaly: {pkg.runtime.cpuAnomaly ? "YES ⚠" : "no"}</p>
+                <p>
+                  CPU (max user share):{" "}
+                  {Math.round((pkg.runtime.cpuUserRatioMax ?? 0) * 100)}%
+                  {pkg.runtime.cpuAnomaly ? " — spike ⚠" : ""}
+                </p>
                 {pkg.runtime.errors.length > 0 && (
                   <p>Errors: {pkg.runtime.errors.join("; ")}</p>
                 )}

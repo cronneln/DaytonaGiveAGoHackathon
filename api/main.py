@@ -21,7 +21,7 @@ from models import (
 )
 from registry import triage_dependencies
 from sandbox import run_in_sandbox
-from scorer import score_runtime
+from scorer import score_runtime, summarize_audit_results
 
 # In-memory audit store: audit_id → { queue, results, summary }
 _audits: dict[str, dict] = {}
@@ -158,6 +158,7 @@ async def start_audit(body: AuditRequest):
         "queue": asyncio.Queue(),
         "results": [],
         "summary": None,
+        "ai_summary": None,
     }
 
     # Start audit in background
@@ -199,6 +200,22 @@ async def get_results(audit_id: str):
         raise HTTPException(status_code=404, detail="Audit not found")
     results = _audits[audit_id]["results"]
     return [r.model_dump() for r in results]
+
+
+@app.get("/api/v1/audit/{audit_id}/ai-summary")
+async def audit_ai_summary(audit_id: str):
+    """Cached executive summary across all packages (Claude)."""
+    if audit_id not in _audits:
+        raise HTTPException(status_code=404, detail="Audit not found")
+    store = _audits[audit_id]
+    if store.get("ai_summary"):
+        return {"summary": store["ai_summary"]}
+    results: list[PackageResult] = store["results"]
+    if not results:
+        raise HTTPException(status_code=400, detail="No results available yet")
+    summary = await summarize_audit_results(results)
+    store["ai_summary"] = summary
+    return {"summary": summary}
 
 
 @app.get("/api/v1/audit/{audit_id}/safe-package-json")

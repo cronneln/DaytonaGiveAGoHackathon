@@ -25,6 +25,7 @@ class RuntimeReport(BaseModel):
     fileSystemReads: list[dict] = []
     envVarAccess: list[dict] = []
     cpuAnomaly: bool = False
+    cpuUserRatioMax: float = 0.0
     errors: list[str] = []
     timestamp: int = 0
 
