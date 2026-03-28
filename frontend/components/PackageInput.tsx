@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 const EXAMPLE = JSON.stringify(
@@ -31,6 +32,7 @@ export default function PackageInput() {
     null | "colin" | "gif"
   >(null);
   const [stage2Src, setStage2Src] = useState("/easter-egg-stage2.gif");
+  const [portalReady, setPortalReady] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -53,18 +55,24 @@ export default function PackageInput() {
   }, [easterEggStage]);
 
   useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
     if (!easterEggStage) return;
-    function onKey(e: KeyboardEvent) {
+    function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       e.preventDefault();
-      if (easterEggStage === "colin") {
-        setEasterEggStage("gif");
-      } else {
-        setEasterEggStage(null);
-      }
+      e.stopImmediatePropagation();
+      setEasterEggStage((prev) => {
+        if (prev === "colin") return "gif";
+        if (prev === "gif") return null;
+        return null;
+      });
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKeyDown, { capture: true });
+    return () =>
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [easterEggStage]);
 
   async function submit(e: React.FormEvent) {
@@ -174,41 +182,52 @@ export default function PackageInput() {
     handleChosenFile(file);
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-4">
-      {easterEggStage && (
-        <div
-          className="fixed inset-0 z-100 h-dvh w-screen overflow-hidden bg-black"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Easter egg"
-        >
-          {easterEggStage === "colin" ? (
-            <>
+  const easterEggOverlay =
+    portalReady &&
+    easterEggStage &&
+    createPortal(
+      <div
+        className="fixed inset-0 z-9999 h-dvh w-screen overflow-hidden bg-black"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Easter egg"
+      >
+        {easterEggStage === "colin" ? (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
               <img
                 src="/easter-egg.png"
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
+                className="max-h-full max-w-full object-contain object-center"
               />
-              <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
-                esc to stop looking at colin
-              </p>
-            </>
-          ) : (
-            <>
+            </div>
+            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
+              esc to stop looking at colin
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
               <img
                 src={stage2Src}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover object-center"
+                className="max-h-full max-w-full object-contain object-center"
                 onError={() => setStage2Src("/easter-egg-stage2.png")}
               />
-              <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
-                esc to return home
-              </p>
-            </>
-          )}
-        </div>
-      )}
+            </div>
+            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
+              esc to return home
+            </p>
+          </>
+        )}
+      </div>,
+      document.body
+    );
+
+  return (
+    <>
+      {easterEggOverlay}
+      <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label
@@ -301,5 +320,6 @@ export default function PackageInput() {
         )}
       </button>
     </form>
+    </>
   );
 }
