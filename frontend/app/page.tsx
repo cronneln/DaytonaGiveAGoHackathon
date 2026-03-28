@@ -16,7 +16,7 @@ export default function Home() {
               Daytona sandbox analysis
             </div>
             <h1 className="mt-7 font-mono text-5xl font-semibold tracking-tight text-white sm:text-7xl">
-              Dependency Auditor
+              Specter
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/68 sm:text-lg">
               Paste a <code className="rounded bg-white/8 px-2 py-1 font-mono text-sm">package.json</code> and

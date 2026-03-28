@@ -15,7 +15,7 @@ export default function AuditPage(props: PageProps<"/audit/[id]">) {
           <div className="flex items-center gap-3">
             <span className="text-2xl">🔍</span>
             <div>
-              <h1 className="text-xl font-bold text-white">Dependency Audit</h1>
+              <h1 className="text-xl font-bold text-white">Specter</h1>
               <p className="font-mono text-xs text-white/40">{id}</p>
             </div>
           </div>
