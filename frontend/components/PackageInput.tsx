@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 const EXAMPLE = JSON.stringify(
@@ -23,20 +22,12 @@ const EXAMPLE = JSON.stringify(
   2
 );
 
-/** Must match filename in `frontend/public/` (spaces encoded for the URL). */
-const EASTER_EGG_STAGE2_GIF =
-  "/" +
-  encodeURIComponent("WhatsApp GIF 2025-11-25 at 18.48.08.gif");
 
 export default function PackageInput() {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [easterEggStage, setEasterEggStage] = useState<
-    null | "colin" | "gif"
-  >(null);
-  const [stage2Src, setStage2Src] = useState("/easter-egg-stage2.png");
   const [portalReady, setPortalReady] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -45,43 +36,8 @@ export default function PackageInput() {
     process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
   useEffect(() => {
-    if (!easterEggStage) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [easterEggStage]);
-
-  useEffect(() => {
-    if (easterEggStage !== "gif") return;
-    setStage2Src("/easter-egg-stage2.png");
-    const probe = new Image();
-    probe.onload = () => setStage2Src(EASTER_EGG_STAGE2_GIF);
-    probe.onerror = () => {};
-    probe.src = EASTER_EGG_STAGE2_GIF;
-  }, [easterEggStage]);
-
-  useEffect(() => {
     setPortalReady(true);
   }, []);
-
-  useEffect(() => {
-    if (!easterEggStage) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      setEasterEggStage((prev) => {
-        if (prev === "colin") return "gif";
-        if (prev === "gif") return null;
-        return null;
-      });
-    }
-    document.addEventListener("keydown", onKeyDown, { capture: true });
-    return () =>
-      document.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [easterEggStage]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -145,7 +101,7 @@ export default function PackageInput() {
 
   function handleChosenFile(file: File) {
     if (!isLikelyJsonFile(file)) {
-      setEasterEggStage("colin");
+      setError("Please upload a .json file");
       return;
     }
     loadFileFromFile(file);
@@ -190,51 +146,8 @@ export default function PackageInput() {
     handleChosenFile(file);
   }
 
-  const easterEggOverlay =
-    portalReady &&
-    easterEggStage &&
-    createPortal(
-      <div
-        className="fixed inset-0 z-9999 h-dvh w-screen overflow-hidden bg-black"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Easter egg"
-      >
-        {easterEggStage === "colin" ? (
-          <>
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              <img
-                src="/easter-egg.png"
-                alt=""
-                className="h-full w-full object-contain object-center"
-              />
-            </div>
-            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
-              esc to stop looking at colin
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              <img
-                key={stage2Src}
-                src={stage2Src}
-                alt=""
-                className="h-full w-full object-contain object-center"
-              />
-            </div>
-            <p className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-black via-black/70 to-transparent px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24 text-center text-lg font-medium tracking-wide text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] sm:text-xl">
-              esc to return home
-            </p>
-          </>
-        )}
-      </div>,
-      document.body
-    );
-
   return (
     <>
-      {easterEggOverlay}
       <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
